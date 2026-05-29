@@ -20,6 +20,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       root.classList.remove('dark')
     }
+    // Tell the browser which scheme is active so mobile "force dark" /
+    // auto-dark-theme doesn't re-darken (wash out) our own light mode.
+    root.style.colorScheme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
 
