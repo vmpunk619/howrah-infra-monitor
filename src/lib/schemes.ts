@@ -21,6 +21,40 @@ export interface Scheme {
   websites: { label: string; url: string }[]
 }
 
+/** Row shape as stored in the Supabase `schemes` table (admin-added schemes). */
+export interface SchemeRow {
+  id: string
+  name: string
+  short: string | null
+  category: SchemeCategory
+  icon: string
+  accent: string
+  objective: string
+  benefits: string[] | null
+  eligibility: string[] | null
+  documents: string[] | null
+  where_to_apply: string[] | null
+  websites: { label: string; url: string }[] | null
+  created_at?: string
+}
+
+export function rowToScheme(r: SchemeRow): Scheme {
+  return {
+    id: r.id,
+    name: r.name,
+    short: r.short ?? undefined,
+    category: r.category,
+    icon: r.icon || '📋',
+    accent: r.accent || 'amber',
+    objective: r.objective,
+    benefits: r.benefits ?? [],
+    eligibility: r.eligibility ?? [],
+    documents: r.documents ?? [],
+    whereToApply: r.where_to_apply ?? [],
+    websites: r.websites ?? [],
+  }
+}
+
 export const CATEGORY_META: Record<SchemeCategory, { label: string; icon: string; color: string }> = {
   central: { label: 'Central Government Schemes', icon: '🇮🇳', color: 'text-saffron-dark' },
   state:   { label: 'West Bengal State Schemes',  icon: '🌾', color: 'text-emerald-600'   },

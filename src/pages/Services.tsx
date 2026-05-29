@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Search, X, ExternalLink, ChevronDown, CheckCircle2, FileText,
   MapPin, Sparkles, ArrowRight, Building2, Info, Phone,
 } from 'lucide-react'
-import { SCHEMES, SCHEME_STATS, CATEGORY_META, type Scheme, type SchemeCategory } from '../lib/schemes'
+import { supabase } from '../lib/supabase'
+import { SCHEMES, SCHEME_STATS, CATEGORY_META, rowToScheme, type Scheme, type SchemeCategory, type SchemeRow } from '../lib/schemes'
 import { useReveal } from '../hooks/useScrollReveal'
 import clsx from 'clsx'
 
@@ -14,10 +15,34 @@ export default function Services() {
   const [query, setQuery]   = useState('')
   const [filter, setFilter] = useState<Filter>('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [dbSchemes, setDbSchemes] = useState<Scheme[]>([])
+
+  // Merge built-in (static) schemes with any admin-added ones from Supabase.
+  useEffect(() => {
+    supabase
+      .from('schemes')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (data) setDbSchemes(data.map(r => rowToScheme(r as SchemeRow)))
+      })
+  }, [])
+
+  const allSchemes = useMemo(() => {
+    const seen = new Set(SCHEMES.map(s => s.id))
+    return [...SCHEMES, ...dbSchemes.filter(s => !seen.has(s.id))]
+  }, [dbSchemes])
+
+  const counts = useMemo(() => ({
+    total:   allSchemes.length,
+    central: allSchemes.filter(s => s.category === 'central').length,
+    state:   allSchemes.filter(s => s.category === 'state').length,
+    land:    allSchemes.filter(s => s.category === 'land').length,
+  }), [allSchemes])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return SCHEMES.filter(s => {
+    return allSchemes.filter(s => {
       if (filter && s.category !== filter) return false
       if (!q) return true
       return (
@@ -27,7 +52,7 @@ export default function Services() {
         s.benefits?.some(b => b.toLowerCase().includes(q))
       )
     })
-  }, [query, filter])
+  }, [query, filter, allSchemes])
 
   function toggle(id: string) {
     setExpanded(prev => {
@@ -63,10 +88,10 @@ export default function Services() {
             )}
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            <FilterPill label="All Schemes" active={filter === ''} onClick={() => setFilter('')} count={SCHEMES.length} />
-            <FilterPill label="🇮🇳 Central" active={filter === 'central'} onClick={() => setFilter('central')} count={SCHEME_STATS.central} />
-            <FilterPill label="🌾 West Bengal" active={filter === 'state'} onClick={() => setFilter('state')} count={SCHEME_STATS.state} />
-            <FilterPill label="📜 Land" active={filter === 'land'} onClick={() => setFilter('land')} count={SCHEME_STATS.land} />
+            <FilterPill label="All Schemes" active={filter === ''} onClick={() => setFilter('')} count={counts.total} />
+            <FilterPill label="🇮🇳 Central" active={filter === 'central'} onClick={() => setFilter('central')} count={counts.central} />
+            <FilterPill label="🌾 West Bengal" active={filter === 'state'} onClick={() => setFilter('state')} count={counts.state} />
+            <FilterPill label="📜 Land" active={filter === 'land'} onClick={() => setFilter('land')} count={counts.land} />
           </div>
         </div>
       </section>

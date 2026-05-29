@@ -5,11 +5,13 @@ import {
   LogOut, RefreshCw, Filter, Bell, ChevronRight,
   AlertTriangle, Clock, Zap, CheckCircle, TrendingUp,
   Inbox, Upload, FileText, Search, X,
+  Gift, Plus, Pencil, Trash2, ExternalLink,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Complaint, ComplaintStatus, IssueCategory, Officer, Dak, DakStatus, DakCategory } from '../types'
 import { ISSUE_CATEGORIES, STATUS_CONFIG } from '../lib/departments'
 import { DAK_STATUS_CONFIG, DAK_PRIORITY_CONFIG, DAK_CATEGORY_CONFIG, DAK_SENDER_TYPE_CONFIG, isOverdue } from '../lib/dak'
+import { Scheme, SchemeRow, rowToScheme, CATEGORY_META } from '../lib/schemes'
 import ComplaintMap from '../components/ComplaintMap'
 import ComplaintCard from '../components/ComplaintCard'
 import StatsPanel from '../components/StatsPanel'
@@ -17,10 +19,11 @@ import OfficerHierarchy from '../components/OfficerHierarchy'
 import AddOfficerModal from '../components/AddOfficerModal'
 import UploadDakModal from '../components/UploadDakModal'
 import DakDetailModal from '../components/DakDetailModal'
+import AddSchemeModal from '../components/AddSchemeModal'
 import clsx from 'clsx'
 import { format } from 'date-fns'
 
-type View = 'overview' | 'map' | 'list' | 'officers' | 'dak'
+type View = 'overview' | 'map' | 'list' | 'officers' | 'dak' | 'schemes'
 
 const NAV_ITEMS: { key: View; icon: React.ElementType; label: string; sub: string }[] = [
   { key: 'overview', icon: LayoutDashboard, label: 'Overview',        sub: 'Stats & activity'    },
@@ -28,6 +31,7 @@ const NAV_ITEMS: { key: View; icon: React.ElementType; label: string; sub: strin
   { key: 'list',     icon: List,            label: 'Complaints List', sub: 'Manage & filter'     },
   { key: 'dak',      icon: Inbox,           label: 'Dak Tracking',    sub: 'Correspondence flow' },
   { key: 'officers', icon: Users,           label: 'Officers',        sub: 'Hierarchy & teams'   },
+  { key: 'schemes',  icon: Gift,            label: 'Govt Schemes',    sub: 'Services page content' },
 ]
 
 export default function Dashboard() {
@@ -41,6 +45,9 @@ export default function Dashboard() {
   const [showAddOfficer, setShowAddOfficer] = useState(false)
   const [showUploadDak, setShowUploadDak]   = useState(false)
   const [openDak, setOpenDak]               = useState<Dak | null>(null)
+  const [schemes, setSchemes]               = useState<Scheme[]>([])
+  const [showSchemeModal, setShowSchemeModal] = useState(false)
+  const [editScheme, setEditScheme]         = useState<Scheme | null>(null)
   const [toast, setToast] = useState<string>('')
   const [filters, setFilters] = useState({
     status:   '' as ComplaintStatus | '',
@@ -61,15 +68,24 @@ export default function Dashboard() {
 
   async function fetchAll() {
     setLoading(true)
-    const [{ data: c }, { data: o }, { data: d }] = await Promise.all([
+    const [{ data: c }, { data: o }, { data: d }, { data: s }] = await Promise.all([
       supabase.from('complaints').select('*').order('created_at', { ascending: false }),
       supabase.from('officers').select('*').order('rank').order('name'),
       supabase.from('dak').select('*').order('created_at', { ascending: false }),
+      supabase.from('schemes').select('*').order('created_at', { ascending: true }),
     ])
     if (c) setComplaints(c)
     if (o) setOfficers(o)
     if (d) setDaks(d as Dak[])
+    if (s) setSchemes(s.map(r => rowToScheme(r as SchemeRow)))
     setLoading(false)
+  }
+
+  async function handleDeleteScheme(id: string) {
+    const { error } = await supabase.from('schemes').delete().eq('id', id)
+    if (error) { flash(`✗ Failed to delete: ${error.message}`); return }
+    setSchemes(prev => prev.filter(s => s.id !== id))
+    flash('✓ Scheme removed from Services page')
   }
 
   async function handleStatusUpdate(id: string, status: ComplaintStatus, notes: string) {
@@ -441,6 +457,16 @@ export default function Dashboard() {
                   onOpen={(d: Dak) => setOpenDak(d)}
                 />
               )}
+
+              {/* ── SCHEMES ── */}
+              {view === 'schemes' && (
+                <SchemesView
+                  schemes={schemes}
+                  onAdd={() => { setEditScheme(null); setShowSchemeModal(true) }}
+                  onEdit={(s) => { setEditScheme(s); setShowSchemeModal(true) }}
+                  onDelete={handleDeleteScheme}
+                />
+              )}
             </>
           )}
         </div>
@@ -492,6 +518,15 @@ export default function Dashboard() {
             setDaks(prev => prev.map(d => d.id === updated.id ? updated : d))
             setOpenDak(updated)
           }}
+        />
+      )}
+
+      {/* Add / Edit Scheme Modal */}
+      {showSchemeModal && (
+        <AddSchemeModal
+          existing={editScheme}
+          onClose={() => setShowSchemeModal(false)}
+          onSaved={fetchAll}
         />
       )}
 
@@ -762,5 +797,86 @@ function DakStatCard({
         <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">{label}</div>
       </div>
     </button>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════
+   SCHEMES VIEW — manage admin-added Govt Services content
+   ════════════════════════════════════════════════════════════ */
+function SchemesView({
+  schemes, onAdd, onEdit, onDelete,
+}: {
+  schemes: Scheme[]
+  onAdd: () => void
+  onEdit: (s: Scheme) => void
+  onDelete: (id: string) => void
+}) {
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  return (
+    <div className="animate-fade-in space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Government Schemes</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Schemes added here are published on the public Govt Services page, alongside the built-in list.
+          </p>
+        </div>
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-saffron to-saffron-dark text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-saffron/25 transition-all btn-press"
+        >
+          <Plus className="w-4 h-4" /> Add Scheme
+        </button>
+      </div>
+
+      {schemes.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-2xl border border-gray-100">
+          <Gift className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <div className="text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+            No custom schemes yet. The Services page still shows the built-in schemes —
+            click “Add Scheme” to publish a new one.
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {schemes.map(s => (
+            <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
+              <div className="flex items-start gap-3 mb-2">
+                <div className="text-3xl shrink-0">{s.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-navy-900 text-sm leading-snug">{s.name}</div>
+                  <div className="text-[11px] font-semibold text-saffron-dark uppercase tracking-wide mt-0.5">
+                    {CATEGORY_META[s.category]?.label}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed flex-1 line-clamp-2">{s.objective}</p>
+              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                <button onClick={() => onEdit(s)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </button>
+                {confirmId === s.id ? (
+                  <>
+                    <button onClick={() => { onDelete(s.id); setConfirmId(null) }} className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
+                      Confirm delete
+                    </button>
+                    <button onClick={() => setConfirmId(null)} className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-100 rounded-lg">Cancel</button>
+                  </>
+                ) : (
+                  <button onClick={() => setConfirmId(s.id)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
+                {s.websites?.[0] && (
+                  <a href={s.websites[0].url} target="_blank" rel="noopener noreferrer" className="ml-auto text-gray-400 hover:text-saffron" title="Open official site">
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

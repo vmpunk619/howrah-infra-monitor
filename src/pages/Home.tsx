@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowRight, ChevronDown, Lock, MapPin, Sparkles,
+  ArrowRight, ChevronDown, Lock, MapPin, Sparkles, Navigation,
   Landmark, Train, Phone, HeartHandshake, Compass,
   Plus, Minus, Calendar, Sun, Camera,
 } from 'lucide-react'
 import WaveDivider from '../components/WaveDivider'
 import { useReveal } from '../hooks/useScrollReveal'
-import { PLACES, HERO_SLIDES, FEATURED_NAMES, CATEGORY_STYLE, Place } from '../lib/tourism'
+import { PLACES, NEARBY_KOLKATA, HERO_SLIDES, FEATURED_NAMES, CATEGORY_STYLE, mapsUrl, Place } from '../lib/tourism'
 
 /* ─── Howrah Bridge silhouette SVG ─────────────────────────── */
 function BridgeSilhouette() {
@@ -103,6 +103,14 @@ function Hero() {
           aria-hidden={idx !== i}
         >
           <div className={`absolute inset-0 bg-gradient-to-br ${s.gradient} ${idx === i ? 'ken-burns' : ''}`} />
+          {s.image && (
+            <img
+              src={s.image}
+              alt={s.name}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+              className={`absolute inset-0 w-full h-full object-cover ${idx === i ? 'ken-burns' : ''}`}
+            />
+          )}
           {/* Legibility wash — keeps the hero cinematic-dark in both themes */}
           <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-navy-950/55 to-navy-950/30" />
           {/* Oversized motif watermark */}
@@ -140,7 +148,7 @@ function Hero() {
         </p>
 
         <div className="flex flex-wrap gap-4 animate-fade-up" style={{ animationDelay: '340ms' }}>
-          <button onClick={goExplore} className="btn-saffron btn-press shimmer-hover">
+          <button onClick={goExplore} className="inline-flex items-center gap-2.5 bg-gold/90 hover:bg-gold text-navy-950 font-bold px-7 py-4 rounded-xl shadow-lg shadow-black/20 hover:-translate-y-0.5 transition-all duration-200 btn-press">
             Explore Places to Visit
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -187,7 +195,16 @@ function PlaceCard({ p, i }: { p: Place; i: number }) {
     <div className="dark-card overflow-hidden lift-hover group animate-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
       <div className="relative h-44 overflow-hidden">
         <div className={`absolute inset-0 bg-gradient-to-br ${p.gradient} transition-transform duration-[900ms] ease-out group-hover:scale-110`} />
-        <div className="absolute inset-0 bg-black/10" />
+        {p.image && (
+          <img
+            src={p.image}
+            alt={p.name}
+            loading="lazy"
+            onError={(e) => { e.currentTarget.style.display = 'none' }}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-110"
+          />
+        )}
+        <div className="absolute inset-0 bg-black/15" />
         <div className="absolute inset-0 flex items-center justify-center text-7xl drop-shadow-lg transition-transform duration-500 group-hover:scale-125 group-hover:-rotate-6">
           {p.emoji}
         </div>
@@ -204,8 +221,19 @@ function PlaceCard({ p, i }: { p: Place; i: number }) {
         </div>
         <div className="font-bengali text-sm text-navy-900/35 dark:text-cream/30 mb-2">{p.bengali}</div>
         <p className="text-slate-600 dark:text-cream/45 text-sm leading-relaxed">{p.blurb}</p>
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center gap-2 text-xs font-semibold text-saffron dark:text-gold">
-          <Sparkles className="w-3.5 h-3.5 shrink-0" />{p.highlight}
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2 text-xs font-semibold text-saffron dark:text-gold min-w-0">
+            <Sparkles className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{p.highlight}</span>
+          </span>
+          <a
+            href={mapsUrl(p)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-sky-400 hover:underline"
+          >
+            <Navigation className="w-3.5 h-3.5" />Directions
+          </a>
         </div>
       </div>
     </div>
@@ -223,8 +251,8 @@ export default function Home() {
       <Hero />
 
       {/* Marquee */}
-      <div className="bg-gradient-to-r from-saffron via-saffron-dark to-saffron dark:from-[#060f1d] dark:via-[#060f1d] dark:to-[#060f1d] border-y border-white/10 dark:border-gold/8 py-3 overflow-hidden">
-        <div className="ticker-track gap-12 text-[11px] text-white/95 dark:text-gold/35 font-semibold uppercase tracking-[0.18em]">
+      <div className="bg-navy-900 dark:bg-[#060f1d] border-y border-gold/15 dark:border-gold/8 py-3 overflow-hidden">
+        <div className="ticker-track gap-12 text-[11px] text-gold/70 font-semibold uppercase tracking-[0.18em]">
           {doubled.map((item, i) => (
             <span key={i} className="whitespace-nowrap px-6">❋&nbsp; {item}</span>
           ))}
@@ -251,6 +279,23 @@ export default function Home() {
 
       {/* ══ SPOTLIGHT ══ */}
       <Spotlight />
+
+      {/* ══ NEARBY IN KOLKATA ══ */}
+      <section className="bg-slate-50 dark:bg-navy-900 py-20 md:py-28 transition-colors duration-300">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-14">
+            <div className="lotus-divider mb-5 max-w-xs mx-auto"><span>Just Across the River</span></div>
+            <h2 className="font-serif text-4xl md:text-5xl font-bold text-navy-900 dark:text-cream">Nearby in Kolkata</h2>
+            <p className="text-slate-500 dark:text-cream/35 text-base mt-4 max-w-xl mx-auto leading-relaxed">
+              Howrah sits right beside the City of Joy. Cross a bridge or hop a ferry and these
+              Kolkata landmarks are only minutes away.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {NEARBY_KOLKATA.map((p, i) => <PlaceCard key={p.name} p={p} i={i} />)}
+          </div>
+        </div>
+      </section>
 
       {/* ══ QUICK FACTS ══ */}
       <section className="bg-white dark:bg-navy-950 py-16 md:py-20 transition-colors duration-300">
@@ -339,6 +384,14 @@ function Spotlight() {
                   <span className="flex items-center gap-2 text-slate-500 dark:text-cream/40">
                     <MapPin className="w-4 h-4" />{p.distance} from Howrah Sadar
                   </span>
+                  <a
+                    href={mapsUrl(p)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-blue-600 dark:text-sky-400 font-semibold hover:underline"
+                  >
+                    <Navigation className="w-4 h-4" />Get Directions
+                  </a>
                 </div>
               </div>
             </div>
@@ -453,19 +506,19 @@ function VisitorFAQ() {
 function FinalCTA() {
   const { ref, cls } = useReveal()
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-saffron via-saffron-dark to-terracotta dark:from-navy-800 dark:via-navy-900 dark:to-navy-950 py-20 md:py-24 gradient-breathe">
-      <div className="float-blob w-[400px] h-[400px] bg-white/15 dark:bg-gold/10 -top-20 -right-20" />
-      <div className="float-blob float-blob-2 w-[300px] h-[300px] bg-white/10 dark:bg-saffron/8 bottom-0 -left-10" />
+    <section className="relative overflow-hidden bg-gradient-to-br from-navy-800 via-teal-900 to-navy-950 py-20 md:py-24 gradient-breathe">
+      <div className="float-blob w-[400px] h-[400px] bg-gold/10 -top-20 -right-20" />
+      <div className="float-blob float-blob-2 w-[300px] h-[300px] bg-teal-400/8 bottom-0 -left-10" />
       <div ref={ref} className={`relative z-10 max-w-4xl mx-auto px-6 text-center ${cls}`}>
         <h2 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-5">
           Heritage, rivers & service.<br />
-          <span className="text-amber-100 dark:text-gold">All of Howrah, in one place.</span>
+          <span className="text-gold">All of Howrah, in one place.</span>
         </h2>
-        <p className="text-white/80 dark:text-cream/60 text-base md:text-lg max-w-xl mx-auto mb-10 leading-relaxed">
+        <p className="text-white/75 text-base md:text-lg max-w-xl mx-auto mb-10 leading-relaxed">
           Explore the landmarks of the subdivision, then browse the welfare schemes and citizen services offered by Howrah Sadar SDO.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <a href="#explore" className="inline-flex items-center gap-2.5 bg-white text-saffron-dark dark:bg-saffron dark:text-white font-bold px-8 py-4 rounded-xl shadow-2xl hover:scale-105 hover:shadow-[0_20px_40px_rgba(0,0,0,0.25)] transition-all duration-300 text-base">
+          <a href="#explore" className="inline-flex items-center gap-2.5 bg-gold hover:bg-gold-300 text-navy-950 font-bold px-8 py-4 rounded-xl shadow-2xl hover:scale-105 transition-all duration-300 text-base">
             Explore Places <Compass className="w-5 h-5" />
           </a>
           <Link to="/services" className="inline-flex items-center gap-2.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white border border-white/30 font-bold px-8 py-4 rounded-xl transition-all duration-300 text-base">
